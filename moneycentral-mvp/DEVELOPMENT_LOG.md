@@ -112,4 +112,18 @@ MC Project/
 
 ---
 
+### LOG-007 | Phase 3 — Family Group Management
+
+| Field | Detail |
+|---|---|
+| **Date** | 2026-07-08 |
+| **Status** | ✅ COMPLETE |
+| **Task** | Implement Phase 3: Family Group Management in `src/app/page.tsx`. |
+| **Approach** | 1) Add `family_members` fetching and creation. 2) Add "Family Members Office" section and "Filter by Family Member" master dropdown. 3) Update holdings schema to include `member_id` and map family member names. 4) Update add-stock form and holdings table to handle and display member information. 5) Recalculate metrics dynamically based on the selected filter. 6) Verify with `tsc --noEmit`. |
+| **Files Created** | — |
+| **Files Modified** | `src/app/page.tsx`, `DEVELOPMENT_LOG.md` |
+| **Notes** | Verified build using `tsc --noEmit` with zero errors. The dashboard is now a multi-user family office where investments can be dynamically filtered or aggregated. |
+
+---
+
 

@@ -24,11 +24,18 @@ interface QuoteError {
   error: string;
 }
 
+interface FamilyMember {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
 interface Holding {
   id: string;
   ticker_symbol: string;
   quantity: number;
   avg_buy_price: number;
+  member_id: string | null;
   created_at: string;
 }
 
@@ -43,10 +50,17 @@ export default function Home() {
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
 
+  /* ---- Family Member State ---- */
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  const [newMemberName, setNewMemberName] = useState("");
+  const [addMemberLoading, setAddMemberLoading] = useState(false);
+  const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState<string>("ALL");
+
   /* ---- Add Holding State ---- */
   const [holdingSymbol, setHoldingSymbol] = useState("");
   const [holdingQty, setHoldingQty] = useState("");
   const [holdingPrice, setHoldingPrice] = useState("");
+  const [holdingMemberId, setHoldingMemberId] = useState("");
   const [addLoading, setAddLoading] = useState(false);
   const [addSuccess, setAddSuccess] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
@@ -61,6 +75,45 @@ export default function Home() {
   const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
   const [aiInsights, setAiInsights] = useState<string | null>(null);
   const [aiInsightsError, setAiInsightsError] = useState<string | null>(null);
+
+  /* ================================================================ */
+  /*  Fetch Family Members                                             */
+  /* ================================================================ */
+
+  const fetchFamilyMembers = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("family_members")
+      .select("id, name, created_at")
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.error("Failed to fetch family members:", error.message);
+    } else {
+      setFamilyMembers(data || []);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFamilyMembers();
+  }, [fetchFamilyMembers]);
+
+  const handleAddMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMemberName.trim()) return;
+
+    setAddMemberLoading(true);
+    const { error } = await supabase.from("family_members").insert({
+      name: newMemberName.trim(),
+    });
+
+    if (error) {
+      alert("Error adding family member: " + error.message);
+    } else {
+      setNewMemberName("");
+      fetchFamilyMembers();
+    }
+    setAddMemberLoading(false);
+  };
 
   /* ================================================================ */
   /*  Live Price Fetch (Single Check)                                  */
@@ -125,7 +178,7 @@ export default function Home() {
     setHoldingsLoading(true);
     const { data, error } = await supabase
       .from("holdings")
-      .select("id, ticker_symbol, quantity, avg_buy_price, created_at")
+      .select("id, ticker_symbol, quantity, avg_buy_price, member_id, created_at")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -166,8 +219,8 @@ export default function Home() {
     const qty = parseFloat(holdingQty);
     const price = parseFloat(holdingPrice);
 
-    if (!ticker || isNaN(qty) || qty <= 0 || isNaN(price) || price <= 0) {
-      setAddError("Please enter a valid symbol, quantity, and price.");
+    if (!ticker || isNaN(qty) || qty <= 0 || isNaN(price) || price <= 0 || !holdingMemberId) {
+      setAddError("Please fill out all fields correctly.");
       setAddLoading(false);
       return;
     }
@@ -176,6 +229,7 @@ export default function Home() {
       ticker_symbol: ticker,
       quantity: qty,
       avg_buy_price: price,
+      member_id: holdingMemberId,
     });
 
     if (error) {
@@ -185,6 +239,7 @@ export default function Home() {
       setHoldingSymbol("");
       setHoldingQty("");
       setHoldingPrice("");
+      setHoldingMemberId("");
       // Refresh holdings
       fetchHoldings();
       // Auto-hide success after 3s
@@ -195,18 +250,45 @@ export default function Home() {
   };
 
   /* ================================================================ */
+  /*  Portfolio Calculations & Filtering                               */
+  /* ================================================================ */
+
+  const displayedHoldings = holdings.filter((h) =>
+    selectedFamilyMemberId === "ALL" ? true : h.member_id === selectedFamilyMemberId
+  );
+
+  let totalInvested = 0;
+  let currentValue = 0;
+
+  displayedHoldings.forEach((h) => {
+    const qty = Number(h.quantity);
+    const buyPrice = Number(h.avg_buy_price);
+    const livePrice =
+      livePrices[h.ticker_symbol] !== undefined &&
+      livePrices[h.ticker_symbol] !== null
+        ? Number(livePrices[h.ticker_symbol])
+        : buyPrice;
+
+    totalInvested += qty * buyPrice;
+    currentValue += qty * livePrice;
+  });
+
+  const totalPL = currentValue - totalInvested;
+  const totalPLPercent = totalInvested > 0 ? (totalPL / totalInvested) * 100 : 0;
+
+  /* ================================================================ */
   /*  AI Portfolio Insights                                            */
   /* ================================================================ */
 
   const handleGenerateInsights = async () => {
-    if (holdings.length === 0) return;
+    if (displayedHoldings.length === 0) return;
 
     setAiInsightsLoading(true);
     setAiInsights(null);
     setAiInsightsError(null);
 
-    // Prepare portfolio data exactly as requested
-    const portfolioData = holdings.map((h) => {
+    // Prepare portfolio data exactly as requested based on displayed holdings
+    const portfolioData = displayedHoldings.map((h) => {
       const livePrice = livePrices[h.ticker_symbol];
       const hasLive = livePrice !== undefined && livePrice !== null;
       const currentVal = hasLive ? h.quantity * livePrice : h.quantity * h.avg_buy_price;
@@ -243,29 +325,6 @@ export default function Home() {
   };
 
   /* ================================================================ */
-  /*  Portfolio Calculations                                           */
-  /* ================================================================ */
-
-  let totalInvested = 0;
-  let currentValue = 0;
-
-  holdings.forEach((h) => {
-    const qty = Number(h.quantity);
-    const buyPrice = Number(h.avg_buy_price);
-    const livePrice =
-      livePrices[h.ticker_symbol] !== undefined &&
-      livePrices[h.ticker_symbol] !== null
-        ? Number(livePrices[h.ticker_symbol])
-        : buyPrice;
-
-    totalInvested += qty * buyPrice;
-    currentValue += qty * livePrice;
-  });
-
-  const totalPL = currentValue - totalInvested;
-  const totalPLPercent = totalInvested > 0 ? (totalPL / totalInvested) * 100 : 0;
-
-  /* ================================================================ */
   /*  Render                                                           */
   /* ================================================================ */
 
@@ -278,14 +337,60 @@ export default function Home() {
             MoneyCentral
           </h1>
           <p className="mt-3 text-lg text-zinc-400">
-            The Digital Family Office — Phase 2 Dashboard
+            The Digital Family Office — Phase 3 Dashboard
           </p>
+        </div>
+
+        {/* ========== SECTION: FAMILY OFFICE CONTROLS ========== */}
+        <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2">
+          {/* Family Members Office */}
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 backdrop-blur-sm shadow-xl">
+            <h2 className="mb-4 text-lg font-semibold text-white">
+              👨‍👩‍👧‍👦 Family Members Office
+            </h2>
+            <form onSubmit={handleAddMember} className="flex gap-3">
+              <input
+                type="text"
+                value={newMemberName}
+                onChange={(e) => setNewMemberName(e.target.value)}
+                placeholder="New Member Name"
+                className="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm text-white placeholder-zinc-500 outline-none transition-colors focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
+                required
+              />
+              <button
+                type="submit"
+                disabled={addMemberLoading}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {addMemberLoading ? "Adding..." : "Add Member"}
+              </button>
+            </form>
+          </div>
+
+          {/* Filter Dropdown */}
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 backdrop-blur-sm shadow-xl flex flex-col justify-center">
+            <label className="mb-2 block text-sm font-semibold text-zinc-300">
+              Filter Dashboard by Member
+            </label>
+            <select
+              value={selectedFamilyMemberId}
+              onChange={(e) => setSelectedFamilyMemberId(e.target.value)}
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
+            >
+              <option value="ALL">All Family (Combined Portfolio)</option>
+              {familyMembers.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}'s Portfolio
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* ========== SECTION 0: SUMMARY CARDS ========== */}
         <div className="mb-12 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {/* Total Invested */}
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 backdrop-blur-sm">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 backdrop-blur-sm shadow-lg transition-all">
             <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
               Total Invested
             </p>
@@ -299,7 +404,7 @@ export default function Home() {
           </div>
 
           {/* Current Value */}
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 backdrop-blur-sm">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 backdrop-blur-sm shadow-lg transition-all">
             <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
               Current Value
             </p>
@@ -316,7 +421,7 @@ export default function Home() {
           </div>
 
           {/* Total P&L */}
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 backdrop-blur-sm">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 backdrop-blur-sm shadow-lg transition-all">
             <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
               Total Return (P&L)
             </p>
@@ -365,7 +470,7 @@ export default function Home() {
               </div>
               <button
                 onClick={handleGenerateInsights}
-                disabled={aiInsightsLoading || holdings.length === 0}
+                disabled={aiInsightsLoading || displayedHoldings.length === 0}
                 className="shrink-0 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:from-indigo-500 hover:to-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {aiInsightsLoading ? (
@@ -397,9 +502,9 @@ export default function Home() {
             
             {!aiInsights && !aiInsightsLoading && !aiInsightsError && (
               <div className="text-center py-6 text-sm text-zinc-500 italic">
-                {holdings.length === 0 
-                  ? "Add stocks to your portfolio to unlock AI insights."
-                  : "Click \"Generate AI Health Check\" to analyze your current holdings."}
+                {displayedHoldings.length === 0 
+                  ? "Add stocks to this portfolio to unlock AI insights."
+                  : "Click \"Generate AI Health Check\" to analyze the currently selected portfolio."}
               </div>
             )}
           </div>
@@ -516,6 +621,29 @@ export default function Home() {
                 </h2>
 
                 <form onSubmit={handleAddHolding} className="space-y-4">
+                  <div>
+                    <label
+                      htmlFor="holding-member"
+                      className="mb-1 block text-xs font-medium text-zinc-400"
+                    >
+                      Family Member
+                    </label>
+                    <select
+                      id="holding-member"
+                      value={holdingMemberId}
+                      onChange={(e) => setHoldingMemberId(e.target.value)}
+                      required
+                      className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
+                    >
+                      <option value="" disabled>Select owner...</option>
+                      {familyMembers.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div>
                     <label
                       htmlFor="holding-symbol"
@@ -644,10 +772,10 @@ export default function Home() {
                       />
                     </svg>
                   </div>
-                ) : holdings.length === 0 ? (
+                ) : displayedHoldings.length === 0 ? (
                   <div className="py-24 text-center">
                     <p className="text-zinc-500">
-                      No holdings yet. Add your first stock!
+                      No holdings found for the selected filter.
                     </p>
                   </div>
                 ) : (
@@ -656,6 +784,7 @@ export default function Home() {
                       <thead>
                         <tr className="border-b border-zinc-700/50 text-[10px] uppercase tracking-wider text-zinc-400">
                           <th className="pb-3 pr-4">Ticker</th>
+                          <th className="pb-3 pr-4">Owner</th>
                           <th className="pb-3 pr-4 text-right">Qty</th>
                           <th className="pb-3 pr-4 text-right">Avg Price</th>
                           <th className="pb-3 pr-4 text-right">Live Price</th>
@@ -664,7 +793,7 @@ export default function Home() {
                         </tr>
                       </thead>
                       <tbody>
-                        {holdings.map((h) => {
+                        {displayedHoldings.map((h) => {
                           const qty = Number(h.quantity);
                           const buyPrice = Number(h.avg_buy_price);
                           const livePrice = livePrices[h.ticker_symbol];
@@ -677,6 +806,8 @@ export default function Home() {
                           const indPL = currentVal - costVal;
                           const indPLPercent =
                             costVal > 0 ? (indPL / costVal) * 100 : 0;
+                          
+                          const owner = familyMembers.find(m => m.id === h.member_id)?.name || "—";
 
                           return (
                             <tr
@@ -685,6 +816,9 @@ export default function Home() {
                             >
                               <td className="py-3 pr-4 font-semibold text-white">
                                 {h.ticker_symbol}
+                              </td>
+                              <td className="py-3 pr-4 text-zinc-400">
+                                {owner}
                               </td>
                               <td className="py-3 pr-4 text-right text-zinc-300">
                                 {h.quantity}
