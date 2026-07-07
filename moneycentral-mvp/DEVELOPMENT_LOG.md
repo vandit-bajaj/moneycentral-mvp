@@ -98,3 +98,18 @@ MC Project/
 
 ---
 
+### LOG-006 | Phase 2 — AI Portfolio Analyzer
+
+| Field | Detail |
+|---|---|
+| **Date** | 2026-07-08 |
+| **Status** | ✅ COMPLETE |
+| **Task** | Implement Phase 2: AI Portfolio Analyzer using the Gemini API via `@google/generative-ai` and format output using `react-markdown`. |
+| **Approach** | 1) Installed `@google/generative-ai` and `react-markdown`. 2) Created API route at `src/app/api/analyze/route.ts` to receive portfolio data and return a professional summary using `gemini-1.5-flash`. 3) Updated `src/app/page.tsx` to include an "AI Portfolio Insights" section with a "Generate AI Health Check" button that calls the route and displays the markdown response. 4) Verified build and UI layout. |
+| **Files Created** | `src/app/api/analyze/route.ts` |
+| **Files Modified** | `src/app/page.tsx`, `package.json`, `DEVELOPMENT_LOG.md` |
+| **Notes** | Build verified with `tsc --noEmit` which completed with zero errors. The Gemini model handles formatted JSON strings of portfolios and responds with actionable insights in Markdown. |
+
+---
+
+

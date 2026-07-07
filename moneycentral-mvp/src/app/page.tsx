@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import ReactMarkdown from "react-markdown";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -55,6 +56,11 @@ export default function Home() {
   const [holdingsLoading, setHoldingsLoading] = useState(true);
   const [livePrices, setLivePrices] = useState<Record<string, number | null>>({});
   const [livePricesLoading, setLivePricesLoading] = useState(false);
+
+  /* ---- AI Insights State ---- */
+  const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
+  const [aiInsights, setAiInsights] = useState<string | null>(null);
+  const [aiInsightsError, setAiInsightsError] = useState<string | null>(null);
 
   /* ================================================================ */
   /*  Live Price Fetch (Single Check)                                  */
@@ -189,6 +195,54 @@ export default function Home() {
   };
 
   /* ================================================================ */
+  /*  AI Portfolio Insights                                            */
+  /* ================================================================ */
+
+  const handleGenerateInsights = async () => {
+    if (holdings.length === 0) return;
+
+    setAiInsightsLoading(true);
+    setAiInsights(null);
+    setAiInsightsError(null);
+
+    // Prepare portfolio data exactly as requested
+    const portfolioData = holdings.map((h) => {
+      const livePrice = livePrices[h.ticker_symbol];
+      const hasLive = livePrice !== undefined && livePrice !== null;
+      const currentVal = hasLive ? h.quantity * livePrice : h.quantity * h.avg_buy_price;
+      const costVal = h.quantity * h.avg_buy_price;
+      
+      return {
+        Ticker: h.ticker_symbol,
+        Quantity: h.quantity,
+        BuyPrice: h.avg_buy_price,
+        CurrentPrice: hasLive ? livePrice : h.avg_buy_price,
+        PnL: currentVal - costVal,
+      };
+    });
+
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ portfolio: portfolioData }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setAiInsightsError(data.error || "Failed to generate insights.");
+      } else {
+        setAiInsights(data.summary);
+      }
+    } catch (err) {
+      console.error("Failed to generate AI insights:", err);
+      setAiInsightsError("Network error while generating AI insights.");
+    } finally {
+      setAiInsightsLoading(false);
+    }
+  };
+
+  /* ================================================================ */
   /*  Portfolio Calculations                                           */
   /* ================================================================ */
 
@@ -224,7 +278,7 @@ export default function Home() {
             MoneyCentral
           </h1>
           <p className="mt-3 text-lg text-zinc-400">
-            The Digital Family Office — Phase 1 Dashboard
+            The Digital Family Office — Phase 2 Dashboard
           </p>
         </div>
 
@@ -296,6 +350,60 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {/* ========== SECTION 0.5: AI PORTFOLIO INSIGHTS ========== */}
+        <section className="mb-12">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-6 shadow-2xl backdrop-blur-sm">
+            <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  ✨ AI Portfolio Insights
+                </h2>
+                <p className="text-xs text-zinc-400 mt-1">
+                  SEBI-style health check and risk profiling powered by Gemini.
+                </p>
+              </div>
+              <button
+                onClick={handleGenerateInsights}
+                disabled={aiInsightsLoading || holdings.length === 0}
+                className="shrink-0 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:from-indigo-500 hover:to-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {aiInsightsLoading ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Analyzing...
+                  </span>
+                ) : (
+                  "Generate AI Health Check"
+                )}
+              </button>
+            </div>
+
+            {/* Content Area */}
+            {aiInsightsError && (
+              <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3">
+                <p className="text-sm text-red-300">✕ {aiInsightsError}</p>
+              </div>
+            )}
+            
+            {aiInsights && (
+              <div className="prose prose-invert prose-emerald max-w-none text-sm text-zinc-300 mt-4 rounded-xl border border-zinc-700/50 bg-zinc-800/30 p-5">
+                <ReactMarkdown>{aiInsights}</ReactMarkdown>
+              </div>
+            )}
+            
+            {!aiInsights && !aiInsightsLoading && !aiInsightsError && (
+              <div className="text-center py-6 text-sm text-zinc-500 italic">
+                {holdings.length === 0 
+                  ? "Add stocks to your portfolio to unlock AI insights."
+                  : "Click \"Generate AI Health Check\" to analyze your current holdings."}
+              </div>
+            )}
+          </div>
+        </section>
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
           {/* Left Column: Input Panel */}
