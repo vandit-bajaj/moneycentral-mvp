@@ -69,3 +69,17 @@ MC Project/
 | **Notes** | Build verified: `next build` → ✅ Compiled successfully. Routes: `○ /` (static), `ƒ /api/quote` (dynamic). Had to use `any` cast for yahoo-finance2 quote result due to v3 typing issue with `never` return type. |
 
 ---
+
+### LOG-004 | Phase 1 — Supabase Client + Holdings CRUD (Add Form + Portfolio Table)
+
+| Field | Detail |
+|---|---|
+| **Date** | 2026-07-08 |
+| **Status** | ✅ COMPLETE |
+| **Task** | Create Supabase client utility, build "Add Stock to Portfolio" form and "Portfolio Holdings" table on the dashboard page. Insert/fetch from Supabase `holdings` table. |
+| **Approach** | 1) Verified `.env.local` present and covered by `.env*` in `.gitignore`. 2) Created `src/lib/supabaseClient.ts` with `createClient`. 3) Rewrote `src/app/page.tsx` with 3 sections: live price check (preserved), add-holding form (3 inputs + insert), portfolio table (`useEffect` fetch). 4) Verified via `tsc --noEmit`. |
+| **Files Created** | `src/lib/supabaseClient.ts` |
+| **Files Modified** | `src/app/page.tsx`, `DEVELOPMENT_LOG.md` |
+| **Notes** | `tsc --noEmit` → ✅ zero errors. Dashboard now has 3 functional sections. Supabase `holdings` table must exist with columns: `id`, `ticker_symbol`, `quantity`, `avg_buy_price`, `created_at`. User needs to create this table in Supabase dashboard before testing insert/fetch. |
+
+---
