@@ -42,16 +42,30 @@ MC Project/
 
 ---
 
-<!-- 
-### LOG-XXX | [Task Title]
+### LOG-002 | Phase 1 — Next.js Project Scaffolding & Dependency Setup
 
 | Field | Detail |
 |---|---|
-| **Date** | YYYY-MM-DD |
-| **Status** | 🔲 PLANNED / 🔄 IN PROGRESS / ✅ COMPLETE |
-| **Task** | ... |
-| **Approach** | ... |
-| **Files Created** | ... |
-| **Files Modified** | ... |
-| **Notes** | ... |
--->
+| **Date** | 2026-07-08 |
+| **Status** | ✅ COMPLETE |
+| **Task** | Initialize Next.js (App Router + TypeScript + Tailwind CSS) in `moneycentral-mvp/`, install `@supabase/supabase-js` and `yahoo-finance2`, clean boilerplate, create `.env.local.example`, verify build. |
+| **Approach** | 1) Used `npx create-next-app` with App Router, TS, Tailwind flags to scaffold into a temp dir, then merged into existing `moneycentral-mvp/`. 2) `npm install` production deps. 3) Replaced default `page.tsx` with placeholder. 4) Created env template. 5) Ran `npm run build` — zero errors. |
+| **Files Created** | `package.json`, `tsconfig.json`, `next.config.ts`, `tailwind.config.ts` (via Tailwind v4 — config lives in `globals.css`), `postcss.config.mjs`, `eslint.config.mjs`, `.gitignore`, `.env.local.example`, `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/globals.css`, `public/*` |
+| **Files Modified** | `src/app/page.tsx` (replaced boilerplate), `src/app/layout.tsx` (updated metadata), `package.json` (renamed to `moneycentral-mvp`) |
+| **Notes** | Build verified: `next build` → ✅ Compiled successfully (Next.js 16.2.10, Turbopack). Deps: `@supabase/supabase-js@^2.110.1`, `yahoo-finance2@^3.15.4`. Existing docs (README, DEVELOPMENT_LOG, ARCHITECTURE_AND_ROADMAP) preserved. |
+
+---
+
+### LOG-003 | Phase 1 — Live Stock Price Engine (API Route + Dashboard Playground)
+
+| Field | Detail |
+|---|---|
+| **Date** | 2026-07-08 |
+| **Status** | ✅ COMPLETE |
+| **Task** | Create `src/app/api/quote/route.ts` API route using `yahoo-finance2` for server-side NSE/BSE price fetching. Build interactive playground on `src/app/page.tsx` with symbol input, fetch button, and live price display. |
+| **Approach** | 1) Created API route handler that accepts `?symbol=` param, auto-appends `.NS` for NSE, calls `yahoo-finance2` `quote()`, returns clean JSON. 2) Rewrote `page.tsx` as a `"use client"` component with state, fetch logic, dark-themed Tailwind UI. 3) Added fadeIn keyframe to `globals.css`. 4) Verified build. |
+| **Files Created** | `src/app/api/quote/route.ts` |
+| **Files Modified** | `src/app/page.tsx`, `src/app/globals.css`, `DEVELOPMENT_LOG.md` |
+| **Notes** | Build verified: `next build` → ✅ Compiled successfully. Routes: `○ /` (static), `ƒ /api/quote` (dynamic). Had to use `any` cast for yahoo-finance2 quote result due to v3 typing issue with `never` return type. |
+
+---
