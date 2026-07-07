@@ -83,3 +83,18 @@ MC Project/
 | **Notes** | `tsc --noEmit` → ✅ zero errors. Dashboard now has 3 functional sections. Supabase `holdings` table must exist with columns: `id`, `ticker_symbol`, `quantity`, `avg_buy_price`, `created_at`. User needs to create this table in Supabase dashboard before testing insert/fetch. |
 
 ---
+
+### LOG-005 | Phase 1 — Batch Price Fetching & Portfolio Math Engine
+
+| Field | Detail |
+|---|---|
+| **Date** | 2026-07-08 |
+| **Status** | ✅ COMPLETE |
+| **Task** | Update API route at `src/app/api/quote/route.ts` to support batch fetching via comma-separated list. Update `src/app/page.tsx` with summary cards ("Total Invested", "Current Value", "Total P&L") and calculate calculations based on fetched live prices for all holdings, then add live price and individual P&L to holdings table. |
+| **Approach** | 1) Updated `src/app/api/quote/route.ts` to check if `symbols` query param is present. Split by comma, fetch quotes via `Promise.all` calling `yahooFinance.quote()`, and mapped each to its live price. 2) Updated `src/app/page.tsx` with state for live prices, loading, calculations, rendered summary cards, and updated the holdings table dynamically. 3) Ran compilation checks. |
+| **Files Created** | — |
+| **Files Modified** | `src/app/api/quote/route.ts`, `src/app/page.tsx`, `DEVELOPMENT_LOG.md` |
+| **Notes** | Verified type safety with `tsc --noEmit` which completed successfully with zero errors. All batch calls are executed efficiently server-side. |
+
+---
+
