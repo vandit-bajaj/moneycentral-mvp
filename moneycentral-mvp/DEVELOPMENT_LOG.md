@@ -126,4 +126,32 @@ MC Project/
 
 ---
 
+### LOG-008 | Phase 4 — Authentication & Security
+
+| Field | Detail |
+|---|---|
+| **Date** | 2026-07-08 |
+| **Status** | ✅ COMPLETE |
+| **Task** | Implement Phase 4: Authentication and Security using Supabase Auth. Create login/signup page, protect dashboard, pass user ID to inserts, and write RLS policies. |
+| **Approach** | 1) Created `src/app/login/page.tsx` for auth. 2) Protected `src/app/page.tsx` with router redirect if session is null. 3) Added sign out button. 4) Updated database insertion queries to include `user_id`. 5) Documented SQL commands for Supabase RLS. 6) Verified build with `tsc --noEmit`. |
+| **Files Created** | `src/app/login/page.tsx` |
+| **Files Modified** | `src/app/page.tsx`, `DEVELOPMENT_LOG.md` |
+| **Notes** | Build compiled cleanly with no TypeScript type errors. Users are now redirected to `/login` if not logged in. database insertions attach the user's UUID. |
+
+---
+
+### LOG-009 | Phase 5 — UI Polish & Premium Styling
+
+| Field | Detail |
+|---|---|
+| **Date** | 2026-07-08 |
+| **Status** | ✅ COMPLETE |
+| **Task** | Enhance visual design: Indian currency formatting helper, smooth hover animations, cohesive zinc/slate color palette, and premium empty states. |
+| **Approach** | 1) Created `formatINR` helper. 2) Refactored all currency displays in page dashboard. 3) Enhanced Tailwind interactive classes with hover/transition utilities. 4) Stylized table empty states. 5) Run compilation checks. |
+| **Files Created** | — |
+| **Files Modified** | `src/app/page.tsx`, `DEVELOPMENT_LOG.md` |
+| **Notes** | Verified build using `tsc --noEmit` which completed with zero errors. All styling guidelines and formatting look excellent. |
+
+---
+
 
