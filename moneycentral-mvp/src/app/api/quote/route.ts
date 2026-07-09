@@ -1,6 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { headers } from "next/headers";
+import { NextRequest } from "next/server";
 import YahooFinance from "yahoo-finance2";
 import { z } from "zod";
+import { quoteRatelimit } from "@/lib/ratelimit";
+import { apiError, apiSuccess } from "@/lib/api-response";
 
 const yahooFinance = new YahooFinance();
 
@@ -24,6 +27,23 @@ const QuoteQuerySchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
+  const headersList = await headers();
+  const ip = headersList.get("x-forwarded-for") ?? headersList.get("x-real-ip") ?? "anonymous";
+
+  const { success, limit, remaining, reset } = await quoteRatelimit.limit(ip);
+  if (!success) {
+    return apiError(
+      "Too many requests. Please wait before fetching quotes again.",
+      429,
+      {
+        "X-RateLimit-Limit": String(limit),
+        "X-RateLimit-Remaining": String(remaining),
+        "X-RateLimit-Reset": String(reset),
+        "Retry-After": String(Math.ceil((reset - Date.now()) / 1000)),
+      }
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const parsed = QuoteQuerySchema.safeParse({
     symbols: searchParams.get("symbols"),
@@ -31,22 +51,19 @@ export async function GET(request: NextRequest) {
   });
 
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.flatten().fieldErrors },
-      { status: 400 }
-    );
+    return apiError(parsed.error.flatten().fieldErrors, 400);
   }
 
   const { symbols, symbol } = parsed.data;
+  const cacheHeaders = {
+    "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+  };
 
   // --- Case 1: Batch Fetching (symbols=INFY.NS,RELIANCE.NS) ---
   if (symbols) {
     const symbolList = symbols.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
     if (symbolList.length === 0) {
-      return NextResponse.json(
-        { error: "Invalid symbols list" },
-        { status: 400 }
-      );
+      return apiError("Invalid symbols list", 400);
     }
 
     const priceMap: Record<string, number | null> = {};
@@ -67,13 +84,10 @@ export async function GET(request: NextRequest) {
         })
       );
 
-      return NextResponse.json(priceMap);
+      return apiSuccess(priceMap, 200, cacheHeaders);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "An unexpected error occurred";
-      return NextResponse.json(
-        { error: `Failed to perform batch fetch: ${message}` },
-        { status: 500 }
-      );
+      return apiError(`Failed to perform batch fetch: ${message}`, 500);
     }
   }
 
@@ -88,13 +102,10 @@ export async function GET(request: NextRequest) {
       const result: any = await yahooFinance.quote(ticker);
 
       if (!result || result.regularMarketPrice === undefined) {
-        return NextResponse.json(
-          { error: `No market data found for ticker: ${ticker}` },
-          { status: 404 }
-        );
+        return apiError(`No market data found for ticker: ${ticker}`, 404);
       }
 
-      return NextResponse.json({
+      return apiSuccess({
         symbol: result.symbol,
         shortName: result.shortName ?? result.longName ?? ticker,
         price: result.regularMarketPrice,
@@ -104,16 +115,13 @@ export async function GET(request: NextRequest) {
         currency: result.currency ?? "INR",
         marketState: result.marketState ?? "UNKNOWN",
         timestamp: new Date().toISOString(),
-      });
+      }, 200, cacheHeaders);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "An unexpected error occurred";
       console.error(`[/api/quote] Failed to fetch quote for ${ticker}:`, message);
-      return NextResponse.json(
-        { error: `Failed to fetch quote for "${ticker}". ${message}` },
-        { status: 500 }
-      );
+      return apiError(`Failed to fetch quote for "${ticker}". ${message}`, 500);
     }
   }
 
-  return NextResponse.json({ error: "Missing required parameter" }, { status: 400 });
+  return apiError("Missing required parameter", 400);
 }

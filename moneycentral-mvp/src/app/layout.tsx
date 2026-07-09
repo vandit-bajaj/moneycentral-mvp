@@ -17,6 +17,8 @@ export const metadata: Metadata = {
   description: "A unified investment tracking and family portfolio management platform for Indian investors.",
 };
 
+import Providers from "@/components/Providers";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,7 +29,9 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

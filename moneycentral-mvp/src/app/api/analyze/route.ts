@@ -1,7 +1,9 @@
-import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { z } from "zod";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { env } from "@/lib/env";
+import { aiRatelimit } from "@/lib/ratelimit";
+import { apiError, apiSuccess } from "@/lib/api-response";
 
 const HoldingSchema = z.object({
   ticker_symbol: z
@@ -30,19 +32,33 @@ function buildPrompt(holdings: z.infer<typeof HoldingSchema>[]) {
 }
 
 export async function POST(req: Request) {
+  const headersList = await headers();
+  const ip = headersList.get("x-forwarded-for") ?? headersList.get("x-real-ip") ?? "anonymous";
+
+  const { success, limit, remaining, reset } = await aiRatelimit.limit(ip);
+  if (!success) {
+    return apiError(
+      "Too many requests. Please wait before analyzing again.",
+      429,
+      {
+        "X-RateLimit-Limit": String(limit),
+        "X-RateLimit-Remaining": String(remaining),
+        "X-RateLimit-Reset": String(reset),
+        "Retry-After": String(Math.ceil((reset - Date.now()) / 1000)),
+      }
+    );
+  }
+
   let body: unknown;
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return apiError("Invalid JSON body", 400);
   }
 
   const parsed = AnalyzeBodySchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.flatten().fieldErrors },
-      { status: 400 }
-    );
+    return apiError(parsed.error.flatten().fieldErrors, 400);
   }
 
   const { holdings } = parsed.data;
@@ -53,13 +69,10 @@ export async function POST(req: Request) {
     const prompt = buildPrompt(holdings);
     const result = await model.generateContent(prompt);
     
-    return NextResponse.json({ summary: result.response.text() });
+    return apiSuccess({ summary: result.response.text() });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("[/api/analyze] Failed to generate AI analysis:", message);
-    return NextResponse.json(
-      { error: "Failed to generate AI analysis." },
-      { status: 500 }
-    );
+    return apiError("Failed to generate AI analysis.", 500);
   }
 }
