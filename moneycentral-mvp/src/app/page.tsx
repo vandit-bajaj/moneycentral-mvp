@@ -40,19 +40,7 @@ interface Holding {
   created_at: string;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Format Utilities                                                   */
-/* ------------------------------------------------------------------ */
-
-function formatINR(value: number): string {
-  const isNegative = value < 0;
-  const absValue = Math.abs(value);
-  const formatted = absValue.toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  return `${isNegative ? "-" : ""}₹${formatted}`;
-}
+import { formatINR, calculatePnL, getTotalInvested } from "@/utils/portfolio";
 
 /* ------------------------------------------------------------------ */
 /*  Page Component                                                     */
@@ -314,7 +302,7 @@ export default function Home() {
     selectedFamilyMemberId === "ALL" ? true : h.member_id === selectedFamilyMemberId
   );
 
-  let totalInvested = 0;
+  const totalInvested = getTotalInvested(displayedHoldings);
   let currentValue = 0;
 
   displayedHoldings.forEach((h) => {
@@ -326,12 +314,14 @@ export default function Home() {
         ? Number(livePrices[h.ticker_symbol])
         : buyPrice;
 
-    totalInvested += qty * buyPrice;
     currentValue += qty * livePrice;
   });
 
-  const totalPL = currentValue - totalInvested;
-  const totalPLPercent = totalInvested > 0 ? (totalPL / totalInvested) * 100 : 0;
+  const { absolute: totalPL, percent: totalPLPercent } = calculatePnL(
+    1,
+    totalInvested,
+    currentValue
+  );
 
   /* ================================================================ */
   /*  AI Portfolio Insights                                            */
@@ -347,15 +337,13 @@ export default function Home() {
     const portfolioData = displayedHoldings.map((h) => {
       const livePrice = livePrices[h.ticker_symbol];
       const hasLive = livePrice !== undefined && livePrice !== null;
-      const currentVal = hasLive ? h.quantity * livePrice : h.quantity * h.avg_buy_price;
-      const costVal = h.quantity * h.avg_buy_price;
+      const currentPrice = hasLive ? Number(livePrice) : Number(h.avg_buy_price);
       
       return {
-        Ticker: h.ticker_symbol,
-        Quantity: h.quantity,
-        BuyPrice: h.avg_buy_price,
-        CurrentPrice: hasLive ? livePrice : h.avg_buy_price,
-        PnL: currentVal - costVal,
+        ticker_symbol: h.ticker_symbol,
+        quantity: Number(h.quantity),
+        avg_buy_price: Number(h.avg_buy_price),
+        current_price: currentPrice,
       };
     });
 
@@ -363,7 +351,7 @@ export default function Home() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ portfolio: portfolioData }),
+        body: JSON.stringify({ holdings: portfolioData }),
       });
 
       const data = await res.json();
@@ -846,10 +834,12 @@ export default function Home() {
                           const buyPrice = Number(h.avg_buy_price);
                           const livePrice = livePrices[h.ticker_symbol];
                           const hasLive = livePrice !== undefined && livePrice !== null;
-                          const currentVal = hasLive ? qty * livePrice : qty * buyPrice;
-                          const costVal = qty * buyPrice;
-                          const indPL = currentVal - costVal;
-                          const indPLPercent = costVal > 0 ? (indPL / costVal) * 100 : 0;
+                          const effectiveLive = hasLive ? Number(livePrice) : buyPrice;
+                          const { absolute: indPL, percent: indPLPercent } = calculatePnL(
+                            qty,
+                            buyPrice,
+                            effectiveLive
+                          );
                           
                           const owner = familyMembers.find(m => m.id === h.member_id)?.name || "—";
 
