@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { headers } from "next/headers";
 import { z } from "zod";
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -27,7 +28,7 @@ function buildPrompt(holdings: z.infer<typeof HoldingSchema>[]) {
         `${h.ticker_symbol}: ${h.quantity} units @ ₹${h.avg_buy_price} avg, current: ₹${h.current_price}`
     )
     .join("\n");
-  
+
   return `Act as a SEBI-registered financial advisor. I will provide a list of an Indian stock portfolio. Analyze it for sector concentration, risk profile, and overall health. Give a brief, professional summary using markdown formatting. Do not give direct buy/sell advice.\n\nPortfolio Holdings:\n${summary}`;
 }
 
@@ -68,7 +69,7 @@ export async function POST(req: Request) {
     const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
     const prompt = buildPrompt(holdings);
     const result = await model.generateContent(prompt);
-    
+
     return apiSuccess({ summary: result.response.text() });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";

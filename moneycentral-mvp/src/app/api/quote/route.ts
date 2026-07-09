@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { headers } from "next/headers";
 import { NextRequest } from "next/server";
 import YahooFinance from "yahoo-finance2";
